@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30517.126
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Missile Launch Manager v2", "Missile Launch Manager v2\Missile Launch Manager v2.csproj", "{B5396EAB-2B12-446B-8249-94AD948357CF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B5396EAB-2B12-446B-8249-94AD948357CF}.Debug|x64.ActiveCfg = Debug|x64
+		{B5396EAB-2B12-446B-8249-94AD948357CF}.Debug|x64.Build.0 = Debug|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1029067D-7DCF-48B6-8113-8C5D18CDFA7C}
+	EndGlobalSection
+EndGlobal
