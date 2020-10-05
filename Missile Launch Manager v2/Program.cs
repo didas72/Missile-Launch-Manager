@@ -1,4 +1,4 @@
-﻿using Sandbox.Game.EntityComponents;
+using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
 using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
@@ -36,6 +36,7 @@ namespace IngameScript
         //Code ===== DON'T CHANGE ANYTHING BELOW
 
         Queue<Target> targets = new Queue<Target>();
+        Queue<Missile> missiles = new Queue<Missile>();
         bool firing = false;
 
         float timeSinceLastLaunch = 0f;
@@ -50,7 +51,9 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-
+        	//check for new missiles
+        	
+			ProcessArguments(argument);
 
             UI();
         }
@@ -59,17 +62,45 @@ namespace IngameScript
         {
             if (LCD != null)
             {
-                LCD.WriteText("");
+            	string display = string.Empty;
+            	
+            	display += $"Firing: {firing}\n";
 
                 foreach (Target t in targets.ToArray())
                 {
-                    LCD.WriteText($"{t.name}: {Math.Round(t.x)}; {Math.Round(t.y)}; {Math.Round(t.z)}", true);
+                    display += $"{t.name}: {Math.Round(t.x)}; {Math.Round(t.y)}; {Math.Round(t.z)}\n";
                 }
+                
+                LCD.WriteText(display);
             }
             else
             {
                 Echo("Warning - No LCD panel.");
             }
+        }
+        
+        public void ProcessArguments(string arg)
+        {
+        	switch(arg.ToLowerInvariant())
+        	{
+        		case "Fire":
+        		
+        			if (targets.Count != 0)
+        			{
+        				Target tgt = targets.Dequeue();
+        				Missile msl = missiles.Dequeue();
+        				
+        				throw new Exception("Not Implemented");
+        				
+        				//send missile
+        			}
+        			
+        			break;
+        			
+        		//add queuing
+        		//add add salvo launch
+        		//add launch until out of missiles/targets
+        	}
         }
 
         public struct Target
@@ -83,6 +114,43 @@ namespace IngameScript
             {
                 name = n; x = X; y = Y; z = Z;
             }
+        }
+        
+        public struct Missile
+        {
+        	public IMyProgrammableBlock control;
+        	public bool hasWarheads;
+        	public List<IMyWarhead> warheads;
+        	public bool hasSensors;
+        	public List<IMySensor> sensors;
+        	
+        	public Missile(IMyProgrammableBlock control)
+        	{
+        		this.control = control;
+        		hasWarheads = false; hasSensors = false;
+        	}
+        	
+        	public Missile(IMyProgrammableBlock control, List<IMyWarhead> warheads)
+        	{
+        		this.control = control;
+        		this.warheads = warheads;
+        		hasWarheads = true; hasSensors = false;
+        	}
+        	
+        	public Missile(IMyProgrammableBlock control, List<IMySensor> sensors)
+        	{
+        		this.control = control;
+        		this.sensors = sensors;
+        		hasWarheads = false; hasSensors = true;
+        	}
+        	
+        	public Missile(IMyProgrammableBlock control, List<IMyWarhead> warheads, List<IMySensor> sensors)
+        	{
+        		this.control = control;
+        		this.warheads = warheads;
+        		this.sensors = sensors;
+        		hasWarheads = true; hasSensors = true;
+        	}
         }
     }
 }
