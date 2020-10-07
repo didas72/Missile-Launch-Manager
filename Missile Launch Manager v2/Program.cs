@@ -32,7 +32,7 @@ namespace IngameScript
 		
 
         //Missile
-        const string Missile_Control_Program_Name = "Missile Guidance";
+        readonly string[] Missile_Name_Tags = new string[] { "Missile Script Guidance [Set]", "Missile 1", "Missile 2", "Missile 3", "Missile 4" };
 
         //Flight
         const float Flight_Cruise_Altitude = 1000.0f;
@@ -41,11 +41,11 @@ namespace IngameScript
 
         List<Target> targets = new List<Target>();
         List<Missile> missiles = new List<Missile>();
-        bool firing = false;
+        //bool firing = false;
         
         Mode _mode = Mode.None;
 
-        float timeSinceLastLaunch = 0f;
+        //float timeSinceLastLaunch = 0f;
 
         IMyTextSurface LCD = null;
 
@@ -54,6 +54,10 @@ namespace IngameScript
         {
             LCD = GridTerminalSystem.GetBlockWithName(LCD_Name) as IMyTextSurface;
             _mode = Mode.Multiple;
+            Echo(_mode.ToString());
+
+            CheckForMissiles();
+            UI();
         }
 
         public void Main(string argument, UpdateType updateSource)
@@ -75,17 +79,106 @@ namespace IngameScript
 			
             if (LCD != null)
             {
-				//build image here
+                LCD.ContentType = ContentType.SCRIPT;
+                LCD.ScriptBackgroundColor = Color.Black;
+
+                RectangleF viewport = new RectangleF((LCD.TextureSize - LCD.SurfaceSize) / 2f, LCD.SurfaceSize);
+
+                var frame = LCD.DrawFrame();
+
+                DrawSriptes(ref frame, ref viewport);
             }
             else
             {
                 Echo("Warning - No LCD panel.");
             }
         }
+
+        public void DrawSriptes(ref MySpriteDrawFrame frame, ref RectangleF viewPort)
+        {
+            //sprite data: SquareHollow, Triangle, CircleHollow
+
+            MySprite sprite;
+
+            sprite = new MySprite()
+            {
+                Type = SpriteType.TEXT,
+                Data = $"Mode: {_mode}",
+                Position = new Vector2(0, 0),
+                RotationOrScale = 1f,
+                Color = Color.Green,
+                Alignment = TextAlignment.LEFT,
+                FontId = "White"
+            };
+
+            frame.Add(sprite);
+
+            for (int i = 0; i < targets.Count; i++)
+            {
+                sprite = new MySprite()
+                {
+                    Type = SpriteType.TEXT,
+                    Data = targets[i].name,
+                    Position = new Vector2(0,i * 20 + 30),
+                    RotationOrScale = 1f,
+                    Color = Color.Green,
+                    Alignment = TextAlignment.LEFT,
+                    FontId = "White"
+                };
+
+                frame.Add(sprite);
+            }
+
+            Echo($"Missiles: {missiles.Count}");
+
+            for (int i = 0; i < missiles.Count; i++)
+            {
+                sprite = new MySprite()
+                {
+                    Type = SpriteType.TEXTURE,
+                    Data = "SquareHollow",
+                    Position = new Vector2(viewPort.Width / 1.5f, i * 32 + 45),
+                    Size = new Vector2(200, 30),
+                    Color = Color.Green,
+                    Alignment = TextAlignment.CENTER
+                };
+
+                frame.Add(sprite);
+
+                sprite = new MySprite()
+                {
+                    Type = SpriteType.TEXT,
+                    Data = missiles[i].name,
+                    Position = new Vector2(viewPort.Width / 1.5f, i * 32 + 40),
+                    Color = Color.Green,
+                    RotationOrScale = 0.6f,
+                    Alignment = TextAlignment.CENTER
+                };
+
+                frame.Add(sprite);
+            }
+
+            frame.Dispose();
+        }
         
         public void CheckForMissiles()
         {
-        	
+            missiles.Clear();
+
+            List<IMyProgrammableBlock> allPrograms = new List<IMyProgrammableBlock>();
+
+            GridTerminalSystem.GetBlocksOfType<IMyProgrammableBlock>(allPrograms);
+
+            foreach(IMyProgrammableBlock control in allPrograms)
+            {
+                Echo("Loop");
+                if (Missile_Name_Tags.Any(t => control.DisplayNameText.Contains(t)))
+                {
+                    Echo("Found");
+                    Missile msl = new Missile(control.DisplayNameText, control);
+                    missiles.Add(msl);
+                }
+            }
         }
         
         public void ProcessArguments(string arg)
@@ -129,16 +222,16 @@ namespace IngameScript
         {
         	string name = gps.Split(':')[0];
         	double x, y, z;
-        	if (double.TryParse(gps.Split(':')[1], x) &&
-        		double.TryParse(gps.Split(':')[2], y) &&
-        		double.TryParse(gps.Split(':')[3], z))
+        	if (double.TryParse(gps.Split(':')[1], out x) &&
+        		double.TryParse(gps.Split(':')[2], out y) &&
+        		double.TryParse(gps.Split(':')[3], out z))
         	{
         		tgt = new Target(name, x, y, z);
         		return true;
         	}
         	else
         	{
-        		tgt = null;
+        		tgt = new Target();
         		return false;
         	}
         }
@@ -158,35 +251,43 @@ namespace IngameScript
         
         public struct Missile
         {
+            public string name;
         	public IMyProgrammableBlock control;
         	public bool hasWarheads;
         	public List<IMyWarhead> warheads;
         	public bool hasSensors;
-        	public List<IMySensor> sensors;
+        	public List<IMySensorBlock> sensors;
         	
-        	public Missile(IMyProgrammableBlock control)
+        	public Missile(string name, IMyProgrammableBlock control)
         	{
+                this.name = name;
         		this.control = control;
         		hasWarheads = false; hasSensors = false;
+                warheads = null; sensors = null;
         	}
         	
-        	public Missile(IMyProgrammableBlock control, List<IMyWarhead> warheads)
-        	{
-        		this.control = control;
+        	public Missile(string name, IMyProgrammableBlock control, List<IMyWarhead> warheads)
+            {
+                this.name = name;
+                this.control = control;
         		this.warheads = warheads;
         		hasWarheads = true; hasSensors = false;
-        	}
+                sensors = null;
+            }
         	
-        	public Missile(IMyProgrammableBlock control, List<IMySensor> sensors)
-        	{
-        		this.control = control;
+        	public Missile(string name, IMyProgrammableBlock control, List<IMySensorBlock> sensors)
+            {
+                this.name = name;
+                this.control = control;
         		this.sensors = sensors;
         		hasWarheads = false; hasSensors = true;
+                warheads = null;
         	}
         	
-        	public Missile(IMyProgrammableBlock control, List<IMyWarhead> warheads, List<IMySensor> sensors)
-        	{
-        		this.control = control;
+        	public Missile(string name, IMyProgrammableBlock control, List<IMyWarhead> warheads, List<IMySensorBlock> sensors)
+            {
+                this.name = name;
+                this.control = control;
         		this.warheads = warheads;
         		this.sensors = sensors;
         		hasWarheads = true; hasSensors = true;
