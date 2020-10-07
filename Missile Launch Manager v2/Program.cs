@@ -22,22 +22,28 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         //Settings
+        
+        //Name of the LCD to be used:
         const string LCD_Name = "Missile Launch Manager LCD";
+        //Time between each missile launch:
+        const float Time_Between_Launches = 1.0f;
+        //Wether or not to arm warheads before launch
+        const bool Arm_Warheads = true;
+		
 
         //Missile
         const string Missile_Control_Program_Name = "Missile Guidance";
 
         //Flight
         const float Flight_Cruise_Altitude = 1000.0f;
-
-        //Launch
-        const float Time_Between_Launches = 1.0f;
-
+        
         //Code ===== DON'T CHANGE ANYTHING BELOW
 
-        Queue<Target> targets = new Queue<Target>();
-        Queue<Missile> missiles = new Queue<Missile>();
+        List<Target> targets = new List<Target>();
+        List<Missile> missiles = new List<Missile>();
         bool firing = false;
+        
+        Mode _mode = Mode.None;
 
         float timeSinceLastLaunch = 0f;
 
@@ -47,11 +53,12 @@ namespace IngameScript
         public Program()
         {
             LCD = GridTerminalSystem.GetBlockWithName(LCD_Name) as IMyTextSurface;
+            _mode = Mode.Multiple;
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
-        	//check for new missiles
+        	CheckForMissiles();
         	
 			ProcessArguments(argument);
 
@@ -60,18 +67,15 @@ namespace IngameScript
 
         public void UI()
         {
+			//show:
+			//MLM v2.0 by Didas72
+			//Mode: MM   Firing: No   Targets: 3   Missiles: 6
+			//Left column, list of targets
+			//Right column, Visual representation of missiles with position
+			
             if (LCD != null)
             {
-            	string display = string.Empty;
-            	
-            	display += $"Firing: {firing}\n";
-
-                foreach (Target t in targets.ToArray())
-                {
-                    display += $"{t.name}: {Math.Round(t.x)}; {Math.Round(t.y)}; {Math.Round(t.z)}\n";
-                }
-                
-                LCD.WriteText(display);
+				//build image here
             }
             else
             {
@@ -79,16 +83,22 @@ namespace IngameScript
             }
         }
         
+        public void CheckForMissiles()
+        {
+        	
+        }
+        
         public void ProcessArguments(string arg)
         {
-        	switch(arg.ToLowerInvariant())
+        	string instruction = arg.Split(' ')[0].ToLowerInvariant();
+        	string[] arguments = arg.Split(' ').Skip(0).ToArray();
+        	
+        	switch(instruction)
         	{
-        		case "Fire":
+        		case "fire":
         		
         			if (targets.Count != 0)
         			{
-        				Target tgt = targets.Dequeue();
-        				Missile msl = missiles.Dequeue();
         				
         				throw new Exception("Not Implemented");
         				
@@ -98,8 +108,38 @@ namespace IngameScript
         			break;
         			
         		//add queuing
-        		//add add salvo launch
-        		//add launch until out of missiles/targets
+        		
+        		case "add":
+        			
+        			Target tgt;
+        			if (GetTarget(arguments[0], out tgt))
+        			{
+        				targets.Add(tgt);
+        			}
+        			else
+        			{
+        				Echo("Unable to parse GPS point!");
+        			}
+        			
+        			break;
+        	}
+        }
+        
+        public bool GetTarget(string gps, out Target tgt)
+        {
+        	string name = gps.Split(':')[0];
+        	double x, y, z;
+        	if (double.TryParse(gps.Split(':')[1], x) &&
+        		double.TryParse(gps.Split(':')[2], y) &&
+        		double.TryParse(gps.Split(':')[3], z))
+        	{
+        		tgt = new Target(name, x, y, z);
+        		return true;
+        	}
+        	else
+        	{
+        		tgt = null;
+        		return false;
         	}
         }
 
@@ -151,6 +191,13 @@ namespace IngameScript
         		this.sensors = sensors;
         		hasWarheads = true; hasSensors = true;
         	}
+        }
+        
+        public enum Mode
+        {
+        	Error = -1,
+        	None = 0,
+        	Multiple, //Select multiple targets and missiles to fire
         }
     }
 }
