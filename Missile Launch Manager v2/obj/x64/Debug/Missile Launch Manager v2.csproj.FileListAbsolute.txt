@@ -1,4 +1,3 @@
-D:\dev\Space Engineers\Missile Launch Manager v2\Missile Launch Manager v2\obj\x64\Debug\Missile Launch Manager v2.csprojAssemblyReference.cache
 D:\dev\Space Engineers\Missile Launch Manager v2\Missile Launch Manager v2\obj\x64\Debug\Missile Launch Manager v2.exe.config
 D:\dev\Space Engineers\Missile Launch Manager v2\Missile Launch Manager v2\obj\x64\Debug\Missile Launch Manager v2.csproj.CoreCompileInputs.cache
 D:\dev\Space Engineers\Missile Launch Manager v2\Missile Launch Manager v2\bin\MDK\MDK.options.props
