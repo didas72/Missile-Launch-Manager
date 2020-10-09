@@ -23,6 +23,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
+    	#region settings
         //===== Settings =====//
 
         //You may change any of the values below.
@@ -57,8 +58,10 @@ namespace IngameScript
         
         //===== Code =====//
         //DON'T CHANGE ANYTHING BELOW
+        #endregion
 
-        List<Target> targets = new List<Target>();
+    	#region variables
+    	List<Target> targets = new List<Target>();
         List<Missile> missiles = new List<Missile>();
         bool firing = false;
         Queue<MissileLaunch> queuedMissiles = new Queue<MissileLaunch>();
@@ -76,6 +79,7 @@ namespace IngameScript
 
         string error = string.Empty;
         string log = string.Empty;
+        #endregion
 
         #region default methods
         public Program()
