@@ -34,26 +34,41 @@ namespace IngameScript
         //In order to not mess up, just replace the values and don't touch anything else.
         //If you do break something simply re-import the script into the programmable block.
 
+        //Note that, for this version, the script only works with Alysius's Trajectory Missile Script.
+
+
+
+        //=====Script Settings=====//
 
         //Name of the LCD to be used:
         string LCD_Name = "Missile Launch Manager LCD";
+
         //Time between each missile launch:
         float Time_Between_Launches = 1.0f;
-        //Wether or not to arm warheads before launch
-        bool Arm_Warheads = true;
-		
 
-        //Missile Naming Tags:
-        string[] Missile_Name_Tags = new string[] { "Missile Script Guidance [Set]", "Missile 1", "Missile 2", "Missile 3", "Missile 4" };
+        //Tags missile control PB must have to be counted as a missile:
+        string[] Missile_Name_Tags = new string[] { "Missile Script Guidance [Set]", "Missile Control" };
+
+
+
+        //=====Guidance Script Settings=====//
+
+        //Wether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
+        bool Change_Guidance_Settings = false;
 
         //Missile Detach Port Type: 0 = Merge Block; 1 = Rotor; 2 = Connector; 3 = Merge Block And Any Locked Connectors, 4 = Rotor And Any Locked Connectors, 99 = No detach required
         int Missile_Detach_Port_Type = 0;
+
+        //Missile Trajectory Type: 0 = Frefall To Target With Aiming (For Cluster Bomb Deployments), 1 = Frefall To Target Without Aiming (For Cluster Bomb Deployments), 2 = Thrust And Home In To Target
+        int Missile_Trajectory_Type = 2;
 
         //Max Grid Speed (if you use speed mods):
         float Max_Grid_Speed = 104.37f;
 
         //Flight Cruise Altitude:
-        float Flight_Cruise_Altitude = 1000.0f;
+        float Flight_Cruise_Altitude = 1500.0f;
+
+
         
         //===== Code =====//
         //DON'T CHANGE ANYTHING BELOW
@@ -112,6 +127,15 @@ namespace IngameScript
             {
                 str += $"{tgt.ToString()}\n";
             }
+
+            str += $"LCD_Name={LCD_Name}\n";
+            str += $"Time_Between_Launches={Time_Between_Launches}\n";
+            str += $"=\n";
+            str += $"=\n";
+            str += $"=\n";
+            str += $"=\n";
+            str += $"=\n";
+            str += $"=\n";
 
             Storage = str;
         }//add save settings
@@ -673,11 +697,17 @@ namespace IngameScript
 
         public void FireMissile(Target tgt, Missile msl)
         {
-            string dt = string.Empty;
+            if (Change_Guidance_Settings)
+            {
+                string dt = string.Empty;
 
-            dt += $"missileDetachPortType={Missile_Detach_Port_Type}";
+                dt += $"missileDetachPortType={Missile_Detach_Port_Type}\n";
+                dt += $"missileTrajectoryType={Missile_Trajectory_Type}\n";
+                dt += $"MAX_FALL_SPEED={Max_Grid_Speed}\n";
+                dt += $"missileTravelHeight={Flight_Cruise_Altitude}\n";
 
-            msl.control.CustomData = dt;
+                msl.control.CustomData = dt;
+            }
 
             msl.control.TryRun(tgt.ToString());
         }
@@ -702,17 +732,75 @@ namespace IngameScript
 
         public void LoadFromStorage()
         {
-            string[] tgts = Storage.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            string[] lines = Storage.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
-            foreach(string str in tgts)
+            foreach(string line in lines)
             {
-                Target tgt;
+                if (line.StartsWith("GPS:"))
+                {
+                    Target tgt;
 
-                GetTarget(str, out tgt);
-
-                targets.Add(tgt);
+                    if (!GetTarget(line, out tgt))
+                        Error("Couldn't parse target from Storage.");
+                    else
+                        targets.Add(tgt);
+                }
+                else if (line.Contains("LCD_Name="))
+                {
+                    LCD_Name = line.Remove(0, 9);
+                }
+                else if (line.Contains("Time_Between_Launches="))
+                {
+                    if (!float.TryParse(line.Remove(0, 22), out Time_Between_Launches))
+                    {
+                        Error("Couldn't parse Time_Between_Launches from Storage.");
+                    }
+                }
+                else if (line.Contains("Missile_Name_Tags="))
+                {
+                    Missile_Name_Tags = line.Remove(0, 18).Split(';');
+                }
+                else if (line.Contains("Change_Guidance_Settings="))
+                {
+                    if (!bool.TryParse(line.Remove(0, 25), out Change_Guidance_Settings))
+                    {
+                        Error("Couldn't parse Change_Guidance_Settings from Storage.");
+                    }
+                }
+                else if (line.Contains("Missile_Detach_Port_Type="))
+                {
+                    if (!int.TryParse(line.Remove(0, 25), out Missile_Detach_Port_Type))
+                    {
+                        Error("Couldn't parse Missile_Detach_Port_Type from Storage.");
+                    }
+                }
+                else if (line.Contains("Missile_Trajectory_Type="))
+                {
+                    if (!int.TryParse(line.Remove(0, 24), out Missile_Trajectory_Type))
+                    {
+                        Error("Couldn't parse Missile_Trajectory_Type from Storage.");
+                    }
+                }
+                else if (line.Contains("Max_Grid_Speed="))
+                {
+                    if (!float.TryParse(line.Remove(0, 15), out Max_Grid_Speed))
+                    {
+                        Error("Couldn't parse Max_Grid_Speed from Storage.");
+                    }
+                }
+                else if (line.Contains("Flight_Cruise_Altitude="))
+                {
+                    if (!float.TryParse(line.Remove(0, 23), out Flight_Cruise_Altitude))
+                    {
+                        Error("Couldn't parse Flight_Cruise_Altitude from Storage.");
+                    }
+                }
+                else
+                {
+                    Error("Value in storage was not recognised.");
+                }
             }
-        }//add load settings
+        }
 
         public void Error(string err)
         {
