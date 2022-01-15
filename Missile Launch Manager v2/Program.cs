@@ -16,14 +16,13 @@ using VRage.Game.ObjectBuilders.Definitions;
 using VRage.Game;
 using VRage;
 using VRageMath;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Runtime.CompilerServices;
 
 namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-    	#region settings
+        //Version 2.1
+    	#region Settings
         //===== Settings =====//
 
         //You may change any of the values below.
@@ -48,19 +47,19 @@ namespace IngameScript
         float Time_Between_Launches = 1.0f;
 
         //Tags missile control PB must have to be counted as a missile:
-        string[] Missile_Name_Tags = new string[] { "Missile Script Guidance [Set]", "Missile Control" };
+        string[] Missile_Name_Tags = new string[] { "Missile Guidance" };
 
 
 
         //=====Guidance Script Settings=====//
 
-        //Wether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
+        //Whether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
         bool Change_Guidance_Settings = false;
 
         //Missile Detach Port Type: 0 = Merge Block; 1 = Rotor; 2 = Connector; 3 = Merge Block And Any Locked Connectors, 4 = Rotor And Any Locked Connectors, 99 = No detach required
         int Missile_Detach_Port_Type = 0;
 
-        //Missile Trajectory Type: 0 = Frefall To Target With Aiming (For Cluster Bomb Deployments), 1 = Frefall To Target Without Aiming (For Cluster Bomb Deployments), 2 = Thrust And Home In To Target
+        //Missile Trajectory Type: 0 = Freefall To Target With Aiming (For Cluster Bomb Deployments), 1 = Freefall To Target Without Aiming (For Cluster Bomb Deployments), 2 = Thrust And Home In To Target
         int Missile_Trajectory_Type = 2;
 
         //Max Grid Speed (if you use speed mods):
@@ -70,79 +69,54 @@ namespace IngameScript
         float Flight_Cruise_Altitude = 1500.0f;
 
 
-        
+
         //===== Code =====//
         //DON'T CHANGE ANYTHING BELOW
         #endregion
 
-    	#region variables
-    	List<Target> targets = new List<Target>();
-        List<Missile> missiles = new List<Missile>();
-        bool firing = false;
-        Queue<MissileLaunch> queuedMissiles = new Queue<MissileLaunch>();
+        #region Variables
+        private readonly List<Target> targets = new List<Target>();
+        private readonly List<Missile> missiles = new List<Missile>();
+        private bool firing = false;
+        private readonly Queue<MissileLaunch> queuedMissiles = new Queue<MissileLaunch>();
 
-        List<Target> selectedTargets = new List<Target>();
-        List<Missile> selectedMissiles = new List<Missile>();
+        private readonly List<Target> selectedTargets = new List<Target>();
+        private readonly List<Missile> selectedMissiles = new List<Missile>();
 
-        Vector2Int cursor = new Vector2Int(0, 0);
+        private Vector2Int cursor = new Vector2Int(0, 0);
         
-        Mode _mode = Mode.None;
+        private Mode _mode = Mode.None;
 
-        float timeSinceLastLaunch = 0f;
+        private float timeSinceLastLaunch = 0f;
 
-        IMyTextSurface LCD = null;
+        private IMyTextSurface LCD = null;
 
-        string error = string.Empty;
-        string log = string.Empty;
+        private string error = string.Empty;
+        private string log = string.Empty;
         #endregion
 
-        #region default methods
+        #region Default methods
         public Program()
         {
-            if (!string.IsNullOrEmpty(Storage))
-            {
-                LoadFromStorage();
-            }
-
-            LCD = GridTerminalSystem.GetBlockWithName(LCD_Name) as IMyTextSurface;
-            _mode = Mode.Multiple;
-
-            CheckForMissiles();
-            UI();
+            Start();
         }
 
         public void Main(string argument, UpdateType updateSource)
         {
-        	CheckForMissiles();
-
             ProcessLaunches();
         	
             if (!string.IsNullOrEmpty(argument))
 			    ProcessArguments(argument);
+
+            CheckCursorOutOfBounds();
 
             UI();
         }
 
         public void Save()
         {
-            string str = string.Empty;
-
-            foreach (Target tgt in targets)
-            {
-                str += $"{tgt.ToString()}\n";
-            }
-
-            str += $"LCD_Name={LCD_Name}\n";
-            str += $"Time_Between_Launches={Time_Between_Launches}\n";
-            str += $"=\n";
-            str += $"=\n";
-            str += $"=\n";
-            str += $"=\n";
-            str += $"=\n";
-            str += $"=\n";
-
-            Storage = str;
-        }//add save settings
+            SaveToStorage();
+        }
         #endregion
 
         #region UI methods
@@ -338,85 +312,137 @@ namespace IngameScript
         }
         #endregion
 
-        #region logic methods
+        #region Logic methods
+        public void Start()
+        {
+            if (!string.IsNullOrEmpty(Storage))
+            {
+                LoadFromStorage();
+            }
+
+            LCD = GridTerminalSystem.GetBlockWithName(LCD_Name) as IMyTextSurface;
+            _mode = Mode.Multiple;
+
+            timeSinceLastLaunch = Time_Between_Launches;
+
+            CheckForMissiles();
+            UI();
+        }
+
         public void ProcessArguments(string arg)
         {
-            arg += " END";
         	string instruction = arg.Split(' ')[0].ToLowerInvariant();
         	string[] arguments = arg.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Skip(1).ToArray();
-            if (arguments != null && arguments.Length == 1)
-            {
-                if (arguments[0] == "END")
-                {
-                    arguments = null;
-                }
-                else
-                {
-                    arguments = arguments.Except(new List<string> { "END" }).ToArray();
-                }
-            }
-            else
-            {
-                arguments = arguments.Except(new List<string> { "END" }).ToArray();
-            }
+
+            if (arguments == null) arguments = Array.Empty<string>();
+
+            Echo($"Instruction: '{arg}'");
 
         	switch(instruction)
         	{
         		case "fire":
-        		
-                    StartLaunches();
+
+                    if (arguments.Length == 0)
+                        StartLaunches();
+                    else
+                        Error("Invalid number of arguments for command 'fire'.");
         		    
         			break;
         		
         		case "add":
-        			
-        			Target tgt;
-        			if (GetTarget(arguments[0], out tgt))
-        			{
-                        if (!targets.Contains(tgt))
-                            targets.Add(tgt);
-                        else
+
+                    if (arguments.Length == 1)
+                    {
+                        Target tgt;
+
+                        if (GetTarget(arguments[0], out tgt))
                         {
-                            Error("Target already exists.");
+                            if (!targets.Contains(tgt))
+                                targets.Add(tgt);
+                            else
+                                Error("Target already exists.");
                         }
-        			}
-        			else
-        			{
-        				Error("Unable to parse GPS point!");
-        			}
+                        else Error("Unable to parse GPS point!");
+                    }
+                    else Error("Invalid number of arguments for command 'add'.");
         			
         			break;
 
+                case "remove":
+
+                    if (arguments.Length == 0)
+                    {
+                        if (cursor.x == 0 && targets.Count > 0) targets.RemoveAt(cursor.y);
+                    }
+                    else if (arguments.Length == 1)
+                    {
+                        Target tgt;
+
+                        if (GetTarget(arguments[0], out tgt))
+                        {
+                            if (targets.Contains(tgt))
+                                targets.Remove(tgt);
+                            else
+                                Error("Target not found.");
+                        }
+                        else Error("Unable to parse GPS point!");
+                    }
+                    else Error("Invalid number of arguments for command 'remove'.");
+
+                    break;
+
                 case "select":
 
-                    if (arguments == null || arguments.Length < 1)
+                    if (arguments.Length < 1)
                     {
                         if (cursor.x == 0)
                         {
-                            selectedTargets.Add(targets[cursor.y]);
+                            if (targets.Count > 0)
+                                selectedTargets.Add(targets[cursor.y]);
                         }
                         else if (cursor.x == 1)
                         {
-                            selectedMissiles.Add(missiles[cursor.y]);
+                            if (missiles.Count > 0)
+                                selectedMissiles.Add(missiles[cursor.y]);
                         }
 
                         return;
                     }
-                    else
+                    else if (arguments.Length == 1)
                     {
-                        if (arguments[1] == "missile")
+                        if (arguments[0] == "all")
                         {
+                            selectedMissiles.Clear();
+                            selectedMissiles.AddRange(missiles);
+
+                            selectedTargets.Clear(); 
+                            selectedTargets.AddRange(targets);
+                        }
+                        else
+                            Error("Invalid first argument for instruction 'select'");
+                    }
+                    else if (arguments.Length == 2)
+                    {
+                        if (arguments[0] == "missile")
+                        {
+                            if (arguments[1] == "all")
+                            {
+                                selectedMissiles.Clear();
+                                selectedMissiles.AddRange(missiles);
+                                break;
+                            }
+
                             int i;
 
-                            if (!int.TryParse(arguments[2], out i))
+                            if (!int.TryParse(arguments[1], out i))
                             {
-                                Error($"Couldn't convert {arguments[2]} to an integer.");
+                                Error($"Couldn't convert {arguments[1]} to an integer.");
                                 return;
                             }
 
                             if (i >= missiles.Count || i < 0)
                             {
-                                Error($"{i} is outside the valied values for missile index.");
+                                Error($"{i} is outside the valid values for missile index.");
                                 return;
                             }
 
@@ -424,14 +450,20 @@ namespace IngameScript
 
                             return;
                         }
-
-                        if (arguments[1] == "target")
+                        else if (arguments[0] == "target")
                         {
+                            if (arguments[1] == "all")
+                            {
+                                selectedTargets.Clear();
+                                selectedTargets.AddRange(targets);
+                                break;
+                            }
+
                             int i;
 
-                            if (!int.TryParse(arguments[2], out i))
+                            if (!int.TryParse(arguments[1], out i))
                             {
-                                Error($"Couldn't convert {arguments[2]} to an integer.");
+                                Error($"Couldn't convert {arguments[1]} to an integer.");
                                 return;
                             }
 
@@ -444,25 +476,37 @@ namespace IngameScript
                             selectedTargets.Add(targets[i]);
                         }
                     }
+                    else Error("Invalid number of arguments for command 'select'.");
 
                     break;
 
-                case "unselect":
+                case "deselect":
 
-                    if (arguments == null || arguments.Length < 1)
+                    if (arguments.Length < 1)
                     {
                         if (cursor.x == 0)
                         {
-                            selectedTargets.Remove(targets[cursor.y]);
+                            if (targets.Count > 1)
+                                selectedTargets.Remove(targets[cursor.y]);
                         }
                         else if (cursor.x == 1)
                         {
-                            selectedMissiles.Remove(missiles[cursor.y]);
+                            if (missiles.Count > 1)
+                                selectedMissiles.Remove(missiles[cursor.y]);
                         }
 
                         return;
                     }
-                    else
+                    else if (arguments.Length == 1)
+                    {
+                        if (arguments[0] == "all")
+                        {
+                            selectedTargets.Clear();
+                            selectedMissiles.Clear();
+                        }
+                        else Error("Invalid first argument for instruction 'deselect'.");
+                    }
+                    else if (arguments.Length == 2)
                     {
                         if (arguments[1] == "missile")
                         {
@@ -504,90 +548,91 @@ namespace IngameScript
                             selectedTargets.Remove(targets[i]);
                         }
                     }
+                    else Error("Invalid number of arguments for command 'deselect'.");
 
                     break;
 
                 case "abort":
 
-                    Error("LAUNCHES ABORTED.");
-                    firing = false;
+                    if (arguments == null || arguments.Length == 0)
+                    {
+                        Error("LAUNCHES ABORTED.");
+                        firing = false;
+                    }
+                    else Error("Invalid number of arguments for command 'abort'.");
 
                     break;
 
                 case "update":
 
-                    CheckForMissiles();
+                    if (arguments.Length == 0) CheckForMissiles();
+                    else Error("Invalid number of arguments for command 'update'.");
 
                     break;
 
                 case "save":
 
-                    Save();
+                    if (arguments.Length == 0) SaveToStorage();
+                    else Error("Invalid number of arguments for command 'save'.");
 
                     break;
 
                 #region cursor movement
                 case "up":
 
-                    cursor.y--;
-
-                    CheckCursorOutOfBounds();
+                    if (arguments.Length == 0) cursor.y--;
+                    else Error("Invalid number of arguments for command 'up'.");
 
                     break;
 
                 case "down":
 
-                    cursor.y++;
-
-                    CheckCursorOutOfBounds();
+                    if (arguments.Length == 0) cursor.y++;
+                    else Error("Invalid number of arguments for command 'down'.");
 
                     break;
 
                 case "left":
 
-                    cursor.x--;
-
-                    if (cursor.x < 0)
+                    if (arguments.Length == 0)
                     {
-                        cursor.x = 1;
-                        if (cursor.y >= missiles.Count - 1)
+                        cursor.x--;
+
+                        if (cursor.x < 0)
                         {
-                            cursor.y = Math.Max(missiles.Count - 1, 0);
+                            cursor.x = 1;
+
+                            if (cursor.y >= missiles.Count - 1)
+                                cursor.y = Math.Max(missiles.Count - 1, 0);
+                        }
+                        else
+                        {
+                            if (cursor.y >= targets.Count - 1)
+                                cursor.y = Math.Max(targets.Count - 1, 0);
                         }
                     }
-                    else
-                    {
-                        if (cursor.y >= targets.Count - 1)
-                        {
-                            cursor.y = Math.Max(targets.Count - 1, 0);
-                        }
-                    }
-
-                    CheckCursorOutOfBounds();
+                    else Error("Invalid number of arguments for command 'left'.");
 
                     break;
 
                 case "right":
 
-                    cursor.x++;
-
-                    if (cursor.x > 1)
+                    if (arguments.Length == 0)
                     {
-                        cursor.x = 0;
-                        if (cursor.y >= targets.Count - 1)
+                        cursor.x++;
+
+                        if (cursor.x > 1)
                         {
-                            cursor.y = Math.Max(targets.Count - 1, 0);
+                            cursor.x = 0;
+
+                            if (cursor.y >= targets.Count - 1) cursor.y = Math.Max(targets.Count - 1, 0);
+                        }
+                        else
+                        {
+                            if (cursor.y >= missiles.Count - 1) cursor.y = Math.Max(missiles.Count - 1, 0);
                         }
                     }
-                    else
-                    {
-                        if (cursor.y >= missiles.Count - 1)
-                        {
-                            cursor.y = Math.Max(missiles.Count - 1, 0);
-                        }
-                    }
-
-                    CheckCursorOutOfBounds();
+                    else Error("Invalid number of arguments for command 'right'.");
 
                     break;
                 #endregion
@@ -604,6 +649,8 @@ namespace IngameScript
                 firing = false;
                 Runtime.UpdateFrequency = UpdateFrequency.None;
                 Log("Launches completed!");
+
+                timeSinceLastLaunch = Time_Between_Launches;
                 return;
             }
 
@@ -613,11 +660,8 @@ namespace IngameScript
                 return;
 
             MissileLaunch launch = queuedMissiles.Dequeue();
-
             FireMissile(launch.target, launch.missile);
-
             missiles.Remove(launch.missile);
-
             timeSinceLastLaunch = 0f;
         }
 
@@ -681,8 +725,7 @@ namespace IngameScript
             missiles.Clear();
 
             List<IMyProgrammableBlock> allPrograms = new List<IMyProgrammableBlock>();
-
-            GridTerminalSystem.GetBlocksOfType<IMyProgrammableBlock>(allPrograms);
+            GridTerminalSystem.GetBlocksOfType(allPrograms);
 
             foreach (IMyProgrammableBlock control in allPrograms)
             {
@@ -694,10 +737,7 @@ namespace IngameScript
             }
         }
 
-        public void QueueMissileLaunch(Target tgt, Missile msl)
-        {
-            queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
-        }
+        public void QueueMissileLaunch(Target tgt, Missile msl) => queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
 
         public void FireMissile(Target tgt, Missile msl)
         {
@@ -749,61 +789,18 @@ namespace IngameScript
                     else
                         targets.Add(tgt);
                 }
-                else if (line.Contains("LCD_Name="))
-                {
-                    LCD_Name = line.Remove(0, 9);
-                }
-                else if (line.Contains("Time_Between_Launches="))
-                {
-                    if (!float.TryParse(line.Remove(0, 22), out Time_Between_Launches))
-                    {
-                        Error("Couldn't parse Time_Between_Launches from Storage.");
-                    }
-                }
-                else if (line.Contains("Missile_Name_Tags="))
-                {
-                    Missile_Name_Tags = line.Remove(0, 18).Split(';');
-                }
-                else if (line.Contains("Change_Guidance_Settings="))
-                {
-                    if (!bool.TryParse(line.Remove(0, 25), out Change_Guidance_Settings))
-                    {
-                        Error("Couldn't parse Change_Guidance_Settings from Storage.");
-                    }
-                }
-                else if (line.Contains("Missile_Detach_Port_Type="))
-                {
-                    if (!int.TryParse(line.Remove(0, 25), out Missile_Detach_Port_Type))
-                    {
-                        Error("Couldn't parse Missile_Detach_Port_Type from Storage.");
-                    }
-                }
-                else if (line.Contains("Missile_Trajectory_Type="))
-                {
-                    if (!int.TryParse(line.Remove(0, 24), out Missile_Trajectory_Type))
-                    {
-                        Error("Couldn't parse Missile_Trajectory_Type from Storage.");
-                    }
-                }
-                else if (line.Contains("Max_Grid_Speed="))
-                {
-                    if (!float.TryParse(line.Remove(0, 15), out Max_Grid_Speed))
-                    {
-                        Error("Couldn't parse Max_Grid_Speed from Storage.");
-                    }
-                }
-                else if (line.Contains("Flight_Cruise_Altitude="))
-                {
-                    if (!float.TryParse(line.Remove(0, 23), out Flight_Cruise_Altitude))
-                    {
-                        Error("Couldn't parse Flight_Cruise_Altitude from Storage.");
-                    }
-                }
-                else
-                {
-                    Error("Value in storage was not recognised.");
-                }
+                else Error("Value in storage was not recognised.");
             }
+        }
+
+        public void SaveToStorage()
+        {
+            string str = string.Empty;
+
+            foreach (Target tgt in targets)
+                str += $"{tgt}\n";
+
+            Storage = str;
         }
 
         public void Error(string err)
@@ -825,7 +822,7 @@ namespace IngameScript
         }
         #endregion
 
-        #region structs
+        #region Structs
         public struct MissileLaunch
         {
             public Target target;
@@ -907,15 +904,15 @@ namespace IngameScript
 
             public Vector2Int(int X, int Y) { x = X; y = Y; }
         }
-
         #endregion
 
-        #region enums
+        #region Enums
         public enum Mode
         {
-        	Error = -1,
         	None = 0,
-        	Multiple, //Select multiple targets and missiles to fire
+            Single,
+        	Multiple,
+            Multi_Spread,
         }
         #endregion
     }
