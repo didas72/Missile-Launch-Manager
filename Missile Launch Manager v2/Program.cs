@@ -28,6 +28,8 @@ namespace IngameScript
 
         //=====Setup=====//
 
+        //NOTE: Before anything, remember that GPS signals CAN NOT have SPACES in their names for this script to work.
+
         //1) Ensure the grid has: a programable block (for this script) and power. (An LCD panel and some buttons is STRONGLY recommended but not needed to work)
         //2) If using an LCD, ensure it's name contains the tag 'mlm!' or a tag you may set below in the settings.
         //3) Check that your missiles guidance programmable block has the tag 'mg!' or a tag you may set below in the settings.
@@ -38,8 +40,8 @@ namespace IngameScript
         /* fire - Starts launches, depending on the selected mode, targets and missiles
          * add <GPS> - Adds a GPS target to the target list
          * remove [<GPS>/<name>/all] - Removes a GPS target from the target list, if using and LCD accepts no argument, otherwise accepts either the entire GPS point, the name or 'all' to clear the target list.
-         * select [all/missile/target] [all/<number>] - Selects the highlighted missile/target if using an LCD, selects everything if used with the argument 'all', selects all missiles or all targets if using with arguments 'target all' or 'missile all', selects specific target/missile if given a number to select.
-         * deselect [all/missile/target] [all/<number>] - See command 'select'
+         * select [all/missile/target] [<number>] - Selects the highlighted missile/target if using an LCD, selects everything if used with the argument 'all', selects all missiles or all targets if using with arguments 'all targets' or 'all missiles', selects specific target/missile if given a number to select.
+         * deselect [all/missile/target] [<number>] - See command 'select'
          * abort - Cancells all queued launches.
          * update - Checks for new LCDs and missiles.
          * save - Stores all targets to programmable block memory (not needed).
@@ -378,10 +380,8 @@ namespace IngameScript
         	{
         		case "fire":
 
-                    if (arguments.Length == 0)
-                        StartLaunches();
-                    else
-                        Error("Invalid number of arguments for command 'fire'.");
+                    if (arguments.Length == 0) StartLaunches();
+                    else Error("Invalid number of arguments for command 'fire'.");
         		    
         			break;
         		
@@ -472,15 +472,13 @@ namespace IngameScript
                     }
                     else if (arguments.Length == 2)
                     {
+                        if (arguments[0].ToLowerInvariant() == "all")
+                        {
+                            if (arguments[1].ToLowerInvariant() == "missiles") { selectedMissiles.Clear(); selectedMissiles.AddRange(missiles.ToArray()); }
+                            else if (arguments[1].ToLowerInvariant() == "targets") { selectedTargets.Clear(); selectedTargets.AddRange(targets.ToArray()); }
+                        }
                         if (arguments[0] == "missile")
                         {
-                            if (arguments[1] == "all")
-                            {
-                                selectedMissiles.Clear();
-                                selectedMissiles.AddRange(missiles);
-                                break;
-                            }
-
                             int i;
 
                             if (!int.TryParse(arguments[1], out i))
@@ -531,7 +529,7 @@ namespace IngameScript
 
                 case "deselect":
 
-                    if (arguments.Length < 1)
+                    if (arguments.Length  == 0)
                     {
                         if (cursor.x == 0)
                         {
@@ -548,7 +546,7 @@ namespace IngameScript
                     }
                     else if (arguments.Length == 1)
                     {
-                        if (arguments[0] == "all")
+                        if (arguments[0].ToLowerInvariant() == "all")
                         {
                             selectedTargets.Clear();
                             selectedMissiles.Clear();
@@ -557,13 +555,19 @@ namespace IngameScript
                     }
                     else if (arguments.Length == 2)
                     {
-                        if (arguments[1] == "missile")
+                        if (arguments[0].ToLowerInvariant() == "all")
                         {
+                            if (arguments[1].ToLowerInvariant() == "missiles") selectedMissiles.Clear();
+                            else if (arguments[1].ToLowerInvariant() == "targets") selectedTargets.Clear();
+                        }
+                        else if (arguments[0].ToLowerInvariant() == "missile")
+                        {
+
                             int i;
 
-                            if (!int.TryParse(arguments[2], out i))
+                            if (!int.TryParse(arguments[1], out i))
                             {
-                                Error($"Couldn't convert {arguments[2]} to an integer.");
+                                Error($"Couldn't convert {arguments[1]} to an integer.");
                                 return;
                             }
 
@@ -577,14 +581,13 @@ namespace IngameScript
 
                             return;
                         }
-
-                        if (arguments[1] == "target")
+                        else if (arguments[0].ToLowerInvariant() == "target")
                         {
                             int i;
 
-                            if (!int.TryParse(arguments[2], out i))
+                            if (!int.TryParse(arguments[1], out i))
                             {
-                                Error($"Couldn't convert {arguments[2]} to an integer.");
+                                Error($"Couldn't convert {arguments[1]} to an integer.");
                                 return;
                             }
 
@@ -603,7 +606,7 @@ namespace IngameScript
 
                 case "abort":
 
-                    if (arguments == null || arguments.Length == 0)
+                    if (arguments.Length == 0)
                     {
                         Error("LAUNCHES ABORTED.");
                         firing = false;
