@@ -21,8 +21,32 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        //Version 2.1
-    	#region Settings
+        //Missile Launch Manager v2 (Version 2.1)
+
+        #region Instructions
+        //===== Instructions =====//
+
+        //=====Setup=====//
+
+        //1) Ensure the grid has: a programable block (for this script) and power. (An LCD panel and some buttons is STRONGLY recommended but not needed to work)
+        //2) If using an LCD, ensure it's name contains the tag 'mlm!' or a tag you may set below in the settings.
+        //3) Check that your missiles guidance programmable block has the tag 'mg!' or a tag you may set below in the settings.
+
+        //And that's it!
+
+        //Here are the commands available to control the script:
+        /* fire - Starts launches, depending on the selected mode, targets and missiles
+         * add <GPS> - Adds a GPS target to the target list
+         * remove [<GPS>/<name>/all] - Removes a GPS target from the target list, if using and LCD accepts no argument, otherwise accepts either the entire GPS point, the name or 'all' to clear the target list.
+         * select [all/missile/target] [all/<number>] - Selects the highlighted missile/target if using an LCD, selects everything if used with the argument 'all', selects all missiles or all targets if using with arguments 'target all' or 'missile all', selects specific target/missile if given a number to select.
+         * deselect [all/missile/target] [all/<number>] - See command 'select'
+         * abort - Cancells all queued launches.
+         * update - Checks for new LCDs and missiles.
+         * save - Stores all targets to programmable block memory (not needed).
+         */
+        #endregion
+
+        #region Settings
         //===== Settings =====//
 
         //You may change any of the values below.
@@ -40,33 +64,33 @@ namespace IngameScript
 
         //=====Script Settings=====//
 
-        //Name of the LCD to be used:
-        string LCD_Name = "Missile Launch Manager LCD";
+        //Script blocks name tag:
+        private const string Tag = "mlm!";
 
         //Time between each missile launch:
-        float Time_Between_Launches = 1.0f;
+        private const float Time_Between_Launches = 1.0f;
 
-        //Tags missile control PB must have to be counted as a missile:
-        string[] Missile_Name_Tags = new string[] { "Missile Guidance" };
+        //Tags missile control programmable block must have to be counted as a missile:
+        private readonly string[] Missile_Name_Tags = new string[] { "mg!" };
 
 
 
         //=====Guidance Script Settings=====//
 
         //Whether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
-        bool Change_Guidance_Settings = false;
+        private const bool Change_Guidance_Settings = false;
 
         //Missile Detach Port Type: 0 = Merge Block; 1 = Rotor; 2 = Connector; 3 = Merge Block And Any Locked Connectors, 4 = Rotor And Any Locked Connectors, 99 = No detach required
-        int Missile_Detach_Port_Type = 0;
+        private const int Missile_Detach_Port_Type = 0;
 
         //Missile Trajectory Type: 0 = Freefall To Target With Aiming (For Cluster Bomb Deployments), 1 = Freefall To Target Without Aiming (For Cluster Bomb Deployments), 2 = Thrust And Home In To Target
-        int Missile_Trajectory_Type = 2;
+        private const int Missile_Trajectory_Type = 2;
 
         //Max Grid Speed (if you use speed mods):
-        float Max_Grid_Speed = 104.37f;
+        private const float Max_Grid_Speed = 104.37f;
 
         //Flight Cruise Altitude:
-        float Flight_Cruise_Altitude = 1500.0f;
+        private const float Flight_Cruise_Altitude = 1500.0f;
 
 
 
@@ -319,14 +343,26 @@ namespace IngameScript
             {
                 LoadFromStorage();
             }
-
-            LCD = GridTerminalSystem.GetBlockWithName(LCD_Name) as IMyTextSurface;
             _mode = Mode.Multiple;
 
             timeSinceLastLaunch = Time_Between_Launches;
 
+            CheckBlocks();
             CheckForMissiles();
             UI();
+        }
+
+        private void CheckBlocks()
+        {
+            List<IMyTextSurface> surfaces = new List<IMyTextSurface>();
+            GridTerminalSystem.GetBlocksOfType(surfaces);
+
+            foreach (IMyTextSurface sur in surfaces)
+                if (sur.DisplayName.Contains(Tag))
+                {
+                    LCD = sur;
+                    break;
+                }
         }
 
         public void ProcessArguments(string arg)
@@ -377,15 +413,28 @@ namespace IngameScript
                     else if (arguments.Length == 1)
                     {
                         Target tgt;
-
-                        if (GetTarget(arguments[0], out tgt))
+                        if (arguments[0].ToLowerInvariant() == "all")
+                        {
+                            targets.Clear();
+                        }
+                        else if (GetTarget(arguments[0], out tgt))
                         {
                             if (targets.Contains(tgt))
                                 targets.Remove(tgt);
                             else
                                 Error("Target not found.");
                         }
-                        else Error("Unable to parse GPS point!");
+                        else
+                        {
+                            foreach (Target t in targets)
+                                if (t.name == arguments[0])
+                                {
+                                    targets.Remove(t);
+                                    break;
+                                }
+
+                            Error("Unable to parse GPS point!");
+                        }
                     }
                     else Error("Invalid number of arguments for command 'remove'.");
 
@@ -393,7 +442,7 @@ namespace IngameScript
 
                 case "select":
 
-                    if (arguments.Length < 1)
+                    if (arguments.Length  == 0)
                     {
                         if (cursor.x == 0)
                         {
@@ -673,6 +722,12 @@ namespace IngameScript
                 return;
             }
 
+            switch (_mode)
+            {
+                case Mode.Multiple:
+                    break;
+            }
+
             if (selectedTargets.Count > selectedMissiles.Count)
             {
                 Error("Not enough missiles selected. Must be at least 1 per target.");
@@ -912,7 +967,7 @@ namespace IngameScript
         	None = 0,
             Single,
         	Multiple,
-            Multi_Spread,
+            Auto,
         }
         #endregion
     }
