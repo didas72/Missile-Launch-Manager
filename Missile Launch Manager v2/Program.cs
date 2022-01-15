@@ -28,9 +28,11 @@ namespace IngameScript
         // -Mode
         // -Single mode
         // -Auto mode
+        // -Launch spread
+        // -Launch with delay
         //TODO:
         // Opt to keep batteries (with tag) on recharge right until before launch
-        // Launch spread mode
+        // Launch with timer
 
         #region Instructions
         //===== Instructions =====//
@@ -54,6 +56,7 @@ namespace IngameScript
          * abort - Cancells all queued launches.
          * update - Checks for new LCDs and missiles.
          * save - Stores all targets to programmable block memory (not needed).
+         * mode auto/multiple/single - Sets launch mode. Auto will launch one per selected target or an equal number per selected target, multiple will fire all selected and distribute by the selected targets, single will launch one per selected target.
          */
         #endregion
 
@@ -86,6 +89,19 @@ namespace IngameScript
 
 
 
+        //=====Launch Settings=====//
+
+        //The time between the fire command is issued and the first missile is actually launched (in seconds).
+        private const float Launch_Delay = 1.0f;
+
+        //Wether or not to use deviation on repeated launches to the same target.
+        private bool Use_Deviation = true;
+
+        //How much are missiles allowed to deviate in each axis (in meters).
+        private const float Max_Deviaton = 10.0f;
+
+
+
         //=====Guidance Script Settings=====//
 
         //Whether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
@@ -112,17 +128,18 @@ namespace IngameScript
         #region Variables
         private readonly List<Target> targets = new List<Target>();
         private readonly List<Missile> missiles = new List<Missile>();
-        private bool firing = false;
         private readonly Queue<MissileLaunch> queuedMissiles = new Queue<MissileLaunch>();
 
         private readonly List<Target> selectedTargets = new List<Target>();
         private readonly List<Missile> selectedMissiles = new List<Missile>();
 
+        private readonly Random rdm = new Random();
+
         private Vector2Int cursor = new Vector2Int(0, 0);
         
         private Mode _mode = Mode.None;
-
-        private float timeSinceLastLaunch = 0f;
+        private FireState fireState = FireState.Idle;
+        private float fireTiming = 0f;
 
         private IMyTextSurface LCD = null;
 
@@ -202,13 +219,13 @@ namespace IngameScript
             sprite = new MySprite()
             {
                 Type = SpriteType.TEXT,
-                Data = $"Firing: {firing}",
+                Data = $"FireState: {fireState}",
                 Position = new Vector2(viewPort.Width, 0),
                 RotationOrScale = 1f,
                 Color = Color.Green,
                 Alignment = TextAlignment.RIGHT,
                 FontId = "White"
-            };//firing
+            };//fireState
 
             frame.Add(sprite);
 
@@ -361,8 +378,8 @@ namespace IngameScript
                 LoadFromStorage();
             }
             _mode = Mode.Auto;
-
-            timeSinceLastLaunch = Time_Between_Launches;
+            fireState = FireState.Idle;
+            fireTiming = 0f;
 
             CheckBlocks();
             CheckForMissiles();
@@ -611,7 +628,7 @@ namespace IngameScript
                     if (arguments.Length == 0)
                     {
                         Error("LAUNCHES ABORTED.");
-                        firing = false;
+                        fireState = FireState.Idle;
                     }
                     else Error("Invalid number of arguments for command 'abort'.");
 
@@ -635,8 +652,8 @@ namespace IngameScript
 
                     if (arguments.Length == 1)
                     {
-                        if (firing)
-                            Error("Cannot change mode while firing.");
+                        if (fireState != FireState.Idle)
+                            Error("Cannot change mode while fireState.");
                         switch (arguments[0].ToLowerInvariant())
                         {
                             case "sgl":
@@ -725,28 +742,46 @@ namespace IngameScript
         }
         private void ProcessLaunches()
         {
-            if (!firing)
+            if (fireState == FireState.Idle)
                 return;
 
-            if (queuedMissiles.Count == 0)
+            fireTiming += (float)Runtime.TimeSinceLastRun.TotalSeconds;
+
+            switch (fireState)
             {
-                firing = false;
-                Runtime.UpdateFrequency = UpdateFrequency.None;
-                Log("Launches completed!");
+                case FireState.Firing:
+                    if (queuedMissiles.Count == 0)
+                    {
+                        fireState = FireState.Idle;
+                        Runtime.UpdateFrequency = UpdateFrequency.None;
+                        Log("Launches completed!");
 
-                timeSinceLastLaunch = Time_Between_Launches;
-                return;
+                        fireTiming = 0f;
+                        return;
+                    }
+
+                    if (fireTiming < Time_Between_Launches)
+                        return;
+
+                    MissileLaunch launch = queuedMissiles.Dequeue();
+                    FireMissile(launch);
+                    missiles.Remove(launch.missile);
+                    fireState = FireState.Wait;
+                    break;
+
+                case FireState.Wait:
+                    if (fireTiming >= Time_Between_Launches)
+                    {
+                        fireTiming = 0f;
+                        fireState = FireState.Firing;
+                    }
+                    break;
+
+                case FireState.Delay:
+                    if (fireTiming >= Launch_Delay)
+                        fireState = FireState.Firing;
+                    break;
             }
-
-            timeSinceLastLaunch += (float)Runtime.TimeSinceLastRun.TotalSeconds;
-
-            if (timeSinceLastLaunch < Time_Between_Launches)
-                return;
-
-            MissileLaunch launch = queuedMissiles.Dequeue();
-            FireMissile(launch);
-            missiles.Remove(launch.missile);
-            timeSinceLastLaunch = 0f;
         }
 
         private void StartLaunches()
@@ -784,7 +819,7 @@ namespace IngameScript
                 return;
             }
 
-            firing = true;
+            fireState = FireState.Delay;
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
             for (int m = 0, t = 0; m < selectedMissiles.Count; m++)
@@ -797,7 +832,7 @@ namespace IngameScript
         }
         private void StartAutoLaunches()
         {
-            firing = true;
+            fireState = FireState.Delay;
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
             int m = 0, t = 0;
@@ -828,7 +863,7 @@ namespace IngameScript
                 return;
             }
 
-            firing = true;
+            fireState = FireState.Delay;
             Runtime.UpdateFrequency = UpdateFrequency.Update1;
 
             for (int t = 0, m = 0; t < selectedTargets.Count; t++)
@@ -870,7 +905,22 @@ namespace IngameScript
             }
         }
 
-        private void QueueMissileLaunch(Target tgt, Missile msl) => queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
+        private void QueueMissileLaunch(Target tgt, Missile msl)
+        { 
+            if (Use_Deviation)
+            {
+                foreach(MissileLaunch l in queuedMissiles)
+                    if (l.target.name == tgt.name)
+                    {
+                        queuedMissiles.Enqueue(new MissileLaunch(GPSDeviate(tgt), msl));
+                        return;
+                    }
+
+                queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
+            }
+            else
+                queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
+        }
         private void FireMissile(MissileLaunch launch)
         {
             selectedMissiles.Remove(launch.missile);
@@ -962,6 +1012,20 @@ namespace IngameScript
                 else if (cursor.y >= missiles.Count)
                     cursor.y = 0;
             }
+        }
+
+        private Target GPSDeviate(Target source)
+        {
+            Target outp = new Target
+            {
+                name = source.name + "d",
+            };
+
+            outp.x = source.x + rdm.Next((int)(-Max_Deviaton * 100.0), (int)(Max_Deviaton * 100f)) / 100.0;
+            outp.y = source.y + rdm.Next((int)(-Max_Deviaton * 100.0), (int)(Max_Deviaton * 100f)) / 100.0;
+            outp.z = source.z + rdm.Next((int)(-Max_Deviaton * 100.0), (int)(Max_Deviaton * 100f)) / 100.0;
+
+            return outp;
         }
 
         private void Error(string err)
@@ -1074,6 +1138,14 @@ namespace IngameScript
             Single,
         	Multiple,
             Auto,
+        }
+
+        public enum FireState
+        {
+            Idle,
+            Delay,
+            Wait,
+            Firing,
         }
         #endregion
     }
