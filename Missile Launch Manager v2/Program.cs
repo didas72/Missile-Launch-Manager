@@ -22,6 +22,15 @@ namespace IngameScript
     partial class Program : MyGridProgram
     {
         //Missile Launch Manager v2 (Version 2.1)
+        //Done:
+        // -Remove all (targets)
+        // -Update now checks for blocks too
+        // -Mode
+        // -Single mode
+        // -Auto mode
+        //TODO:
+        // Opt to keep batteries (with tag) on recharge right until before launch
+        // Launch spread mode
 
         #region Instructions
         //===== Instructions =====//
@@ -80,7 +89,7 @@ namespace IngameScript
         //=====Guidance Script Settings=====//
 
         //Whether or not to use these settings for the missile guidance. If set to true, values set in the missile will be ignored.
-        private const bool Change_Guidance_Settings = false;
+        private bool Change_Guidance_Settings = false;
 
         //Missile Detach Port Type: 0 = Merge Block; 1 = Rotor; 2 = Connector; 3 = Merge Block And Any Locked Connectors, 4 = Rotor And Any Locked Connectors, 99 = No detach required
         private const int Missile_Detach_Port_Type = 0;
@@ -129,13 +138,19 @@ namespace IngameScript
 
         public void Main(string argument, UpdateType updateSource)
         {
-            ProcessLaunches();
+            if (updateSource == UpdateType.Update1)
+            {
+                ProcessLaunches();
+                UI();
+                return;
+            }
         	
             if (!string.IsNullOrEmpty(argument))
 			    ProcessArguments(argument);
 
+            if (LCD == null) CheckBlocks();
+            CheckForMissiles();
             CheckCursorOutOfBounds();
-
             UI();
         }
 
@@ -146,7 +161,7 @@ namespace IngameScript
         #endregion
 
         #region UI methods
-        public void UI()
+        private void UI()
         {
             if (LCD != null)
             {
@@ -165,7 +180,7 @@ namespace IngameScript
             }
         }
 
-        public void DrawSriptes(ref MySpriteDrawFrame frame, ref RectangleF viewPort)
+        private void DrawSriptes(ref MySpriteDrawFrame frame, ref RectangleF viewPort)
         {
             //sprite data: SquareHollow, Triangle, CircleHollow
 
@@ -339,13 +354,13 @@ namespace IngameScript
         #endregion
 
         #region Logic methods
-        public void Start()
+        private void Start()
         {
             if (!string.IsNullOrEmpty(Storage))
             {
                 LoadFromStorage();
             }
-            _mode = Mode.Multiple;
+            _mode = Mode.Auto;
 
             timeSinceLastLaunch = Time_Between_Launches;
 
@@ -354,20 +369,7 @@ namespace IngameScript
             UI();
         }
 
-        private void CheckBlocks()
-        {
-            List<IMyTextSurface> surfaces = new List<IMyTextSurface>();
-            GridTerminalSystem.GetBlocksOfType(surfaces);
-
-            foreach (IMyTextSurface sur in surfaces)
-                if (sur.DisplayName.Contains(Tag))
-                {
-                    LCD = sur;
-                    break;
-                }
-        }
-
-        public void ProcessArguments(string arg)
+        private void ProcessArguments(string arg)
         {
         	string instruction = arg.Split(' ')[0].ToLowerInvariant();
         	string[] arguments = arg.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Skip(1).ToArray();
@@ -617,7 +619,7 @@ namespace IngameScript
 
                 case "update":
 
-                    if (arguments.Length == 0) CheckForMissiles();
+                    if (arguments.Length == 0) { CheckForMissiles(); CheckBlocks(); }
                     else Error("Invalid number of arguments for command 'update'.");
 
                     break;
@@ -626,6 +628,37 @@ namespace IngameScript
 
                     if (arguments.Length == 0) SaveToStorage();
                     else Error("Invalid number of arguments for command 'save'.");
+
+                    break;
+
+                case "mode":
+
+                    if (arguments.Length == 1)
+                    {
+                        if (firing)
+                            Error("Cannot change mode while firing.");
+                        switch (arguments[0].ToLowerInvariant())
+                        {
+                            case "sgl":
+                            case "single":
+                                _mode = Mode.Single;
+                                break;
+
+                            case "multi":
+                            case "multiple":
+                                _mode = Mode.Multiple;
+                                break;
+
+                            case "auto":
+                                _mode = Mode.Auto;
+                                break;
+
+                            default:
+                                Error($"Invalid mode '{arguments[0]}'");
+                                break;
+                        }
+                    }
+                    else Error("Invalid number of arguments for command 'mode'.");
 
                     break;
 
@@ -690,8 +723,7 @@ namespace IngameScript
                 #endregion
             }
         }
-
-        public void ProcessLaunches()
+        private void ProcessLaunches()
         {
             if (!firing)
                 return;
@@ -712,28 +744,44 @@ namespace IngameScript
                 return;
 
             MissileLaunch launch = queuedMissiles.Dequeue();
-            FireMissile(launch.target, launch.missile);
+            FireMissile(launch);
             missiles.Remove(launch.missile);
             timeSinceLastLaunch = 0f;
         }
 
-        public void StartLaunches()
+        private void StartLaunches()
         {
-            if (selectedMissiles.Count == 0 || selectedTargets.Count == 0)
+            if (selectedTargets.Count == 0)
             {
-                Error("No missiles/targets selected!");
+                Error("No targets selected!");
                 return;
             }
 
             switch (_mode)
             {
                 case Mode.Multiple:
+                    StartMultipleLaunches();
+                    break;
+
+                case Mode.Single:
+                    StartSingleLaunches();
+                    break;
+
+                case Mode.Auto:
+                    StartAutoLaunches();
+                    break;
+
+                default:
+                    Error("This mode is not currently implemented.");
                     break;
             }
-
+        }
+        private void StartMultipleLaunches()
+        {
             if (selectedTargets.Count > selectedMissiles.Count)
             {
                 Error("Not enough missiles selected. Must be at least 1 per target.");
+                return;
             }
 
             firing = true;
@@ -744,41 +792,52 @@ namespace IngameScript
                 if (t >= selectedTargets.Count)
                     t = 0;
 
-                QueueMissileLaunch(selectedTargets[t], selectedMissiles[m]);
-
-                t++;
+                QueueMissileLaunch(selectedTargets[t++], selectedMissiles[m]);
             }
-
-            selectedMissiles.Clear();
-            selectedTargets.Clear();
         }
-        
-        public bool GetTarget(string gps, out Target tgt)
+        private void StartAutoLaunches()
         {
-            if (gps.Split(':').Length < 5)
+            firing = true;
+            Runtime.UpdateFrequency = UpdateFrequency.Update1;
+
+            int m = 0, t = 0;
+
+            if (selectedTargets.Count > missiles.Count)
             {
-                tgt = new Target();
-                return false;
+                while (m < missiles.Count)
+                {
+                    QueueMissileLaunch(selectedTargets[t++], missiles[m++]);
+                }
+            }
+            else
+            {
+                while ((missiles.Count - m) >= selectedTargets.Count)
+                {
+                    foreach (Target tgt in selectedTargets)
+                    {
+                        QueueMissileLaunch(tgt, missiles[m++]);
+                    }
+                }
+            }
+        }
+        private void StartSingleLaunches()
+        {
+            if (selectedTargets.Count > missiles.Count)
+            {
+                Error("There are not enough missiles for the selected targets.");
+                return;
             }
 
-            string name = gps.Split(':')[1];//0 = GPS
-            
-        	double x, y, z;
-        	if (double.TryParse(gps.Split(':')[2], out x) &&
-        		double.TryParse(gps.Split(':')[3], out y) &&
-        		double.TryParse(gps.Split(':')[4], out z))
-        	{
-        		tgt = new Target(name, x, y, z);
-        		return true;
-        	}
-        	else
-        	{
-        		tgt = new Target();
-        		return false;
-        	}
+            firing = true;
+            Runtime.UpdateFrequency = UpdateFrequency.Update1;
+
+            for (int t = 0, m = 0; t < selectedTargets.Count; t++)
+            {
+                QueueMissileLaunch(selectedTargets[t], missiles[m++]);
+            }
         }
 
-        public void CheckForMissiles()
+        private void CheckForMissiles()
         {
             missiles.Clear();
 
@@ -794,11 +853,29 @@ namespace IngameScript
                 }
             }
         }
-
-        public void QueueMissileLaunch(Target tgt, Missile msl) => queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
-
-        public void FireMissile(Target tgt, Missile msl)
+        private void CheckBlocks()
         {
+            List<IMyTextSurface> surfaces = new List<IMyTextSurface>();
+            GridTerminalSystem.GetBlocksOfType(surfaces);
+
+            foreach (IMyTextSurface sur in surfaces)
+            {
+                IMyFunctionalBlock block = sur as IMyFunctionalBlock;
+
+                if (block.DisplayNameText.Contains(Tag))
+                {
+                    LCD = sur;
+                    break;
+                }
+            }
+        }
+
+        private void QueueMissileLaunch(Target tgt, Missile msl) => queuedMissiles.Enqueue(new MissileLaunch(tgt, msl));
+        private void FireMissile(MissileLaunch launch)
+        {
+            selectedMissiles.Remove(launch.missile);
+            missiles.Remove(launch.missile);
+
             if (Change_Guidance_Settings)
             {
                 string dt = string.Empty;
@@ -808,31 +885,13 @@ namespace IngameScript
                 dt += $"MAX_FALL_SPEED={Max_Grid_Speed}\n";
                 dt += $"missileTravelHeight={Flight_Cruise_Altitude}\n";
 
-                msl.control.CustomData = dt;
+                launch.missile.control.CustomData = dt;
             }
 
-            msl.control.TryRun(tgt.ToString());
+            launch.missile.control.TryRun(launch.target.ToString());
         }
 
-        public void CheckCursorOutOfBounds()
-        {
-            if (cursor.x == 0)
-            {
-                if (cursor.y < 0)
-                    cursor.y = targets.Count - 1;
-                else if (cursor.y >= targets.Count)
-                    cursor.y = 0;
-            }
-            else if (cursor.x == 1)
-            {
-                if (cursor.y < 0)
-                    cursor.y = missiles.Count - 1;
-                else if (cursor.y >= missiles.Count)
-                    cursor.y = 0;
-            }
-        }
-
-        public void LoadFromStorage()
+        private void LoadFromStorage()
         {
             string[] lines = Storage.Split(new char[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
 
@@ -850,8 +909,7 @@ namespace IngameScript
                 else Error("Value in storage was not recognised.");
             }
         }
-
-        public void SaveToStorage()
+        private void SaveToStorage()
         {
             string str = string.Empty;
 
@@ -860,8 +918,53 @@ namespace IngameScript
 
             Storage = str;
         }
+        #endregion
 
-        public void Error(string err)
+        #region Util Methods
+        private bool GetTarget(string gps, out Target tgt)
+        {
+            if (gps.Split(':').Length < 5)
+            {
+                tgt = new Target();
+                return false;
+            }
+
+            string name = gps.Split(':')[1];//0 = GPS
+
+            double x, y, z;
+            if (double.TryParse(gps.Split(':')[2], out x) &&
+                double.TryParse(gps.Split(':')[3], out y) &&
+                double.TryParse(gps.Split(':')[4], out z))
+            {
+                tgt = new Target(name, x, y, z);
+                return true;
+            }
+            else
+            {
+                tgt = new Target();
+                return false;
+            }
+        }
+
+        private void CheckCursorOutOfBounds()
+        {
+            if (cursor.x == 0)
+            {
+                if (cursor.y < 0)
+                    cursor.y = targets.Count - 1;
+                else if (cursor.y >= targets.Count)
+                    cursor.y = 0;
+            }
+            else if (cursor.x == 1)
+            {
+                if (cursor.y < 0)
+                    cursor.y = missiles.Count - 1;
+                else if (cursor.y >= missiles.Count)
+                    cursor.y = 0;
+            }
+        }
+
+        private void Error(string err)
         {
             Echo(err);
             if (!string.IsNullOrEmpty(err))
@@ -870,7 +973,7 @@ namespace IngameScript
                 error += err;
         }
 
-        public void Log(string info)
+        private void Log(string info)
         {
             Echo(info);
             if (!string.IsNullOrEmpty(log))
