@@ -32,7 +32,7 @@ namespace IngameScript
         // -Launch with delay
         //TODO:
         // Opt to keep batteries (with tag) on recharge right until before launch
-        // Launch with timer
+        // Pre/Post-Launch with timer (with groups)
 
         #region Instructions
         //===== Instructions =====//
@@ -81,10 +81,7 @@ namespace IngameScript
         //Script blocks name tag:
         private const string Tag = "mlm!";
 
-        //Time between each missile launch:
-        private const float Time_Between_Launches = 1.0f;
-
-        //Tags missile control programmable block must have to be counted as a missile:
+        //Tags missile control programmable block must have to be counted as a missile. Different tags will count as different froups:
         private readonly string[] Missile_Name_Tags = new string[] { "mg!" };
 
 
@@ -99,6 +96,15 @@ namespace IngameScript
 
         //How much are missiles allowed to deviate in each axis (in meters).
         private const float Max_Deviaton = 10.0f;
+
+        //Time between each missile launch:
+        private const float Time_Between_Launches = 1.0f;
+
+        //Pre-Launch timers for each group. Ensure that contains the same number of tags that Missile_Name_Tags has. Leave empty entry for no timer.
+        private readonly string[] Pre_Launch_Group_Timers = new string[] { "" };
+
+        //Post-Launch timers for each group. Ensure that contains the same number of tags that Missile_Name_Tags has. Leave empty entry for no timer.
+        private readonly string[] Post_Launch_Group_Timers = new string[] { "" };
 
 
 
@@ -128,6 +134,8 @@ namespace IngameScript
         #region Variables
         private readonly List<Target> targets = new List<Target>();
         private readonly List<Missile> missiles = new List<Missile>();
+        private readonly List<IMyTimerBlock> preGroupTimers = new List<IMyTimerBlock>();
+        private readonly List<IMyTimerBlock> postGroupTimers = new List<IMyTimerBlock>();
         private readonly Queue<MissileLaunch> queuedMissiles = new Queue<MissileLaunch>();
 
         private readonly List<Target> selectedTargets = new List<Target>();
@@ -143,6 +151,8 @@ namespace IngameScript
 
         private IMyTextSurface LCD = null;
 
+        private Missile lastLaunched;
+
         private string error = string.Empty;
         private string log = string.Empty;
         #endregion
@@ -157,15 +167,22 @@ namespace IngameScript
         {
             if (updateSource == UpdateType.Update1)
             {
+                ProcessPostLaunch();
                 ProcessLaunches();
                 UI();
+                return;
+            }
+
+            if (updateSource == UpdateType.Once)
+            {
+                ProcessPostLaunch();
                 return;
             }
         	
             if (!string.IsNullOrEmpty(argument))
 			    ProcessArguments(argument);
 
-            if (LCD == null) CheckBlocks();
+            CheckBlocks();
             CheckForMissiles();
             CheckCursorOutOfBounds();
             UI();
@@ -753,7 +770,7 @@ namespace IngameScript
                     if (queuedMissiles.Count == 0)
                     {
                         fireState = FireState.Idle;
-                        Runtime.UpdateFrequency = UpdateFrequency.None;
+                        Runtime.UpdateFrequency = UpdateFrequency.Once;
                         Log("Launches completed!");
 
                         fireTiming = 0f;
@@ -781,6 +798,14 @@ namespace IngameScript
                     if (fireTiming >= Launch_Delay)
                         fireState = FireState.Firing;
                     break;
+            }
+        }
+        private void ProcessPostLaunch()
+        {
+            if (lastLaunched.name != "NULL")
+            {
+                lastLaunched.postLaunch?.Trigger();
+                lastLaunched.name = "NULL";
             }
         }
 
@@ -903,6 +928,24 @@ namespace IngameScript
                     break;
                 }
             }
+
+            preGroupTimers.Clear();
+            List<IMyTimerBlock> tbs = new List<IMyTimerBlock>();
+            GridTerminalSystem.GetBlocksOfType(tbs);
+
+            for (int i = 0; i < Pre_Launch_Group_Timers.Length; i++)
+            {
+                if (string.IsNullOrEmpty(Pre_Launch_Group_Timers[i])) { preGroupTimers.Add(null); continue; }
+
+                foreach (IMyTimerBlock tb in tbs) if (tb.DisplayNameText.Contains(Pre_Launch_Group_Timers[i])) { preGroupTimers.Add(tb); break; }
+            }
+
+            for (int i = 0; i < Post_Launch_Group_Timers.Length; i++)
+            {
+                if (string.IsNullOrEmpty(Post_Launch_Group_Timers[i])) { postGroupTimers.Add(null); continue; }
+
+                foreach (IMyTimerBlock tb in tbs) if (tb.DisplayNameText.Contains(Post_Launch_Group_Timers[i])) { postGroupTimers.Add(tb); break; }
+            }
         }
 
         private void QueueMissileLaunch(Target tgt, Missile msl)
@@ -926,6 +969,8 @@ namespace IngameScript
             selectedMissiles.Remove(launch.missile);
             missiles.Remove(launch.missile);
 
+            launch.missile.preLaunch?.Trigger();
+
             if (Change_Guidance_Settings)
             {
                 string dt = string.Empty;
@@ -939,6 +984,8 @@ namespace IngameScript
             }
 
             launch.missile.control.TryRun(launch.target.ToString());
+
+            lastLaunched = launch.missile;
         }
 
         private void LoadFromStorage()
@@ -1081,45 +1128,21 @@ namespace IngameScript
         {
             public string name;
         	public IMyProgrammableBlock control;
-        	public bool hasWarheads;
-        	public List<IMyWarhead> warheads;
-        	public bool hasSensors;
-        	public List<IMySensorBlock> sensors;
+            public IMyTimerBlock preLaunch, postLaunch;
         	
         	public Missile(string name, IMyProgrammableBlock control)
         	{
                 this.name = name;
         		this.control = control;
-        		hasWarheads = false; hasSensors = false;
-                warheads = null; sensors = null;
+                preLaunch = null; postLaunch = null;
         	}
-        	
-        	public Missile(string name, IMyProgrammableBlock control, List<IMyWarhead> warheads)
+
+            public Missile(string name, IMyProgrammableBlock control, IMyTimerBlock preLaunch, IMyTimerBlock postLaunch)
             {
                 this.name = name;
                 this.control = control;
-        		this.warheads = warheads;
-        		hasWarheads = true; hasSensors = false;
-                sensors = null;
+                this.preLaunch = preLaunch; this.postLaunch = postLaunch;
             }
-        	
-        	public Missile(string name, IMyProgrammableBlock control, List<IMySensorBlock> sensors)
-            {
-                this.name = name;
-                this.control = control;
-        		this.sensors = sensors;
-        		hasWarheads = false; hasSensors = true;
-                warheads = null;
-        	}
-        	
-        	public Missile(string name, IMyProgrammableBlock control, List<IMyWarhead> warheads, List<IMySensorBlock> sensors)
-            {
-                this.name = name;
-                this.control = control;
-        		this.warheads = warheads;
-        		this.sensors = sensors;
-        		hasWarheads = true; hasSensors = true;
-        	}
         }
 
         public struct Vector2Int
