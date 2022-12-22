@@ -21,9 +21,11 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        //Missile Launch Manager v2 (Version 2.1)
-        //Done:
-        // -Remove all (targets)
+        //Missile Launch Manager v2 (Version 2.2)
+        //v2.2:
+        // -Changed launched spread to be an uniform pattern
+        //v2.1:
+        // -Added 'remove all' (targets)
         // -Update now checks for blocks too
         // -Mode
         // -Single mode
