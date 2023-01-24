@@ -6,7 +6,7 @@
 
 =====Setup=====
 
-NOTE: Before anything, remember that GPS signals CAN NOT have SPACES in their names for this script to work.
+NOTE1: Before anything, remember that GPS signals CAN NOT have SPACES in their names for this script to work.
 
 1) Ensure the grid has: a programable block (for this script) and power. (An LCD panel and some buttons are STRONGLY recommended but not needed to work)
 2) If using an LCD, ensure it's name contains the tag 'mlm!' or a tag you may set below in the settings.

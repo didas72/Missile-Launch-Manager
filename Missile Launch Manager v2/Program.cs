@@ -1,22 +1,10 @@
-using Sandbox.Game.EntityComponents;
 using Sandbox.ModAPI.Ingame;
-using Sandbox.ModAPI.Interfaces;
 using SpaceEngineers.Game.ModAPI.Ingame;
 using System.Collections.Generic;
-using System.Collections;
 using System.Linq;
-using System.Text;
 using System;
-using VRage.Collections;
-using VRage.Game.Components;
 using VRage.Game.GUI.TextPanel;
-using VRage.Game.ModAPI.Ingame.Utilities;
-using VRage.Game.ModAPI.Ingame;
-using VRage.Game.ObjectBuilders.Definitions;
-using VRage.Game;
-using VRage;
 using VRageMath;
-using Sandbox.Game.Weapons;
 
 namespace IngameScript
 {
@@ -62,11 +50,9 @@ namespace IngameScript
         //Time between each missile launch:
         public const float Time_Between_Launches = 1.0f;
 
-        //Pre-Launch timers for each group. Ensure that contains the same number of tags that Missile_Name_Tags has. Leave empty entry for no timer.
-        public readonly string[] Pre_Launch_Group_Timers = new string[] { "" };
-
-        //Post-Launch timers for each group. Ensure that contains the same number of tags that Missile_Name_Tags has. Leave empty entry for no timer.
-        public readonly string[] Post_Launch_Group_Timers = new string[] { "" };
+        //Pre/Post-Launch timer tag, leave empty for no timer. (Timers must have script tag and the tags below)
+        public readonly string Pre_Launch_Timer_Tag = "Pre";
+        public readonly string Post_Launch_Timer_Tag = "Post";
 
 
 
@@ -95,10 +81,6 @@ namespace IngameScript
 
         #region Variables
         private LaunchControl launchControl;
-
-
-        private readonly List<IMyTimerBlock> preGroupTimers = new List<IMyTimerBlock>();
-        private readonly List<IMyTimerBlock> postGroupTimers = new List<IMyTimerBlock>();
 
         private IMyTextSurface LCD = null;
 
@@ -369,30 +351,22 @@ namespace IngameScript
             {
                 IMyFunctionalBlock block = sur as IMyFunctionalBlock;
 
-                if (block.DisplayNameText.Contains(Tag))
-                {
-                    LCD = sur;
-                    break;
-                }
+                if (block.DisplayNameText.Contains(Tag)) { LCD = sur; break; }
             }
 
-            preGroupTimers.Clear();
             List<IMyTimerBlock> tbs = new List<IMyTimerBlock>();
             GridTerminalSystem.GetBlocksOfType(tbs);
+            IMyTimerBlock preLaunch = null, postLaunch = null;
 
-            for (int i = 0; i < Pre_Launch_Group_Timers.Length; i++)
-            {
-                if (string.IsNullOrEmpty(Pre_Launch_Group_Timers[i])) { preGroupTimers.Add(null); continue; }
+            if (!string.IsNullOrEmpty(Pre_Launch_Timer_Tag))
+                foreach (IMyTimerBlock tb in tbs)
+                    if (tb.DisplayNameText.Contains(Pre_Launch_Timer_Tag) && tb.DisplayNameText.Contains(Tag)) { preLaunch = tb; break; }
 
-                foreach (IMyTimerBlock tb in tbs) if (tb.DisplayNameText.Contains(Pre_Launch_Group_Timers[i])) { preGroupTimers.Add(tb); break; }
-            }
+            if (!string.IsNullOrEmpty(Post_Launch_Timer_Tag))
+                foreach (IMyTimerBlock tb in tbs)
+                    if (tb.DisplayNameText.Contains(Post_Launch_Timer_Tag) && tb.DisplayNameText.Contains(Tag)) { postLaunch = tb; break; }
 
-            for (int i = 0; i < Post_Launch_Group_Timers.Length; i++)
-            {
-                if (string.IsNullOrEmpty(Post_Launch_Group_Timers[i])) { postGroupTimers.Add(null); continue; }
-
-                foreach (IMyTimerBlock tb in tbs) if (tb.DisplayNameText.Contains(Post_Launch_Group_Timers[i])) { postGroupTimers.Add(tb); break; }
-            }
+            launchControl.SetLaunchTimers(preLaunch, postLaunch);
         }
         private void CheckForMissiles()
         {
@@ -876,6 +850,7 @@ namespace IngameScript
             Idle,
             Delay,
             Wait,
+            PreFire,
             Firing,
         }
         #endregion

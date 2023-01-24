@@ -42,7 +42,6 @@ namespace IngameScript
         {
             public string name;
             public IMyProgrammableBlock control;
-            public IMyTimerBlock preLaunch, postLaunch;
             public readonly int UID;
 
             //For debugging purposes only so far
@@ -52,15 +51,6 @@ namespace IngameScript
             {
                 this.name = name;
                 this.control = control;
-                preLaunch = null; postLaunch = null;
-                UID = nextUID++;
-            }
-
-            public Missile(string name, IMyProgrammableBlock control, IMyTimerBlock preLaunch, IMyTimerBlock postLaunch)
-            {
-                this.name = name;
-                this.control = control;
-                this.preLaunch = preLaunch; this.postLaunch = postLaunch;
                 UID = nextUID++;
             }
         }

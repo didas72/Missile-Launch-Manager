@@ -16,6 +16,8 @@ namespace IngameScript
             public Mode LaunchMode = Mode.None;
             public FireState FireState = FireState.Idle;
 
+            private IMyTimerBlock preLaunch, postLaunch;
+
             private readonly Program host;
 
             private readonly List<Target> targets = new List<Target>();
@@ -70,7 +72,7 @@ namespace IngameScript
             {
                 if (selectedTargets.Count > selectedMissiles.Count)
                 {
-                    host.Error("Not enough missiles selected. Must be at least 1 per target.");
+                    host.Error($"Not enough missiles selected.\nMust be at least 1 per target.\n{selectedTargets.Count}:{selectedMissiles.Count}");
                     return;
                 }
 
@@ -151,8 +153,6 @@ namespace IngameScript
                 selectedMissiles.Remove(mslIndex);
                 missiles.Remove(launch.missile);
 
-                launch.missile.preLaunch?.Trigger();
-
                 if (host.Change_Guidance_Settings)
                 {
                     string dt = string.Empty;
@@ -172,6 +172,10 @@ namespace IngameScript
 
 
 
+            public void ProcessPreLaunch()
+            { 
+                preLaunch?.Trigger();
+            }
             public void ProcessLaunches()
             {
                 if (FireState == FireState.Idle)
@@ -181,6 +185,11 @@ namespace IngameScript
 
                 switch (FireState)
                 {
+                    case FireState.PreFire:
+                        ProcessPreLaunch();
+                        FireState = FireState.Firing;
+                        break;
+
                     case FireState.Firing:
                         if (queuedMissiles.Count == 0)
                         {
@@ -204,13 +213,13 @@ namespace IngameScript
                         if (fireTiming >= Time_Between_Launches)
                         {
                             fireTiming = 0f;
-                            FireState = FireState.Firing;
+                            FireState = FireState.PreFire;
                         }
                         break;
 
                     case FireState.Delay:
                         if (fireTiming >= Launch_Delay)
-                            FireState = FireState.Firing;
+                            FireState = FireState.PreFire;
                         break;
                 }
             }
@@ -218,9 +227,17 @@ namespace IngameScript
             {
                 if (lastLaunched != null)
                 {
-                    lastLaunched.postLaunch?.Trigger();
+                    postLaunch?.Trigger();
                     lastLaunched = null;
                 }
+            }
+
+
+
+            public void SetLaunchTimers(IMyTimerBlock preLaunch, IMyTimerBlock postLaunch)
+            {
+                this.preLaunch = preLaunch;
+                this.postLaunch = postLaunch;
             }
 
 
@@ -252,7 +269,11 @@ namespace IngameScript
             #endregion
 
             #region Selected missiles wrapper
-            public void SelectMissile(int index) => selectedMissiles.Add(index);
+            public void SelectMissile(int index)
+            {
+                if (!selectedMissiles.Contains(index))
+                    selectedMissiles.Add(index);
+            }
             public void SelectAllMissiles()
             {
                 selectedMissiles.Clear();
@@ -265,7 +286,11 @@ namespace IngameScript
             #endregion
 
             #region Selected targets wrapper
-            public void SelectTarget(int index) => selectedTargets.Add(index);
+            public void SelectTarget(int index)
+            { 
+                if (!selectedTargets.Contains(index))
+                    selectedTargets.Add(index);
+            }
             public void SelectAllTargets()
             {
                 selectedTargets.Clear();
