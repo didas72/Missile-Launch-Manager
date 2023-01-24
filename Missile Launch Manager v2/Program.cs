@@ -22,19 +22,7 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        //Missile Launch Manager v2 (Version 2.2)
-        //v2.2:
-        // -Internal code refactoring
-        // [WIP]Added Pre/Post-Launch timers
-        // [PENDING]Changed launched spread to be an uniform pattern
-        //v2.1:
-        // -Added 'remove all' (targets)
-        // -Added launch modes: Single, Multiple and Auto
-        // -Added option for launch spread
-        // -Added option for launch with delay
-        // -Update now checks for blocks too
-        //TODO:
-        // -Option to keep batteries (with tag) on recharge right until before launch
+        //Missile Launch Manager v2.2
 
         #region Settings
         //===== Settings =====//
