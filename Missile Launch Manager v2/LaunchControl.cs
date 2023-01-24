@@ -48,6 +48,8 @@ namespace IngameScript
                     return;
                 }
 
+                ProcessPreLaunch();
+
                 switch (LaunchMode)
                 {
                     case Mode.Multiple:
@@ -182,11 +184,6 @@ namespace IngameScript
 
                 switch (FireState)
                 {
-                    case FireState.PreFire:
-                        ProcessPreLaunch();
-                        FireState = FireState.Firing;
-                        break;
-
                     case FireState.Firing:
                         if (queuedMissiles.Count == 0)
                         {
@@ -210,19 +207,19 @@ namespace IngameScript
                         if (fireTiming >= Time_Between_Launches)
                         {
                             fireTiming = 0f;
-                            FireState = FireState.PreFire;
+                            FireState = FireState.Firing;
                         }
                         break;
 
                     case FireState.Delay:
                         if (fireTiming >= Launch_Delay)
-                            FireState = FireState.PreFire;
+                            FireState = FireState.Firing;
                         break;
                 }
             }
             public void ProcessPostLaunch()
             {
-                postLaunch?.Trigger();
+                postLaunch?.StartCountdown();
             }
 
 

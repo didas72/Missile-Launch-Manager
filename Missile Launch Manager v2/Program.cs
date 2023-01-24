@@ -102,7 +102,6 @@ namespace IngameScript
         {
             if (updateSource == UpdateType.Update1)
             {
-                launchControl.ProcessPostLaunch();
                 launchControl.ProcessLaunches();
                 UI();
                 return;
@@ -850,7 +849,6 @@ namespace IngameScript
             Idle,
             Delay,
             Wait,
-            PreFire,
             Firing,
         }
         #endregion
