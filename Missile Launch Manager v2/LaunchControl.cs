@@ -30,7 +30,6 @@ namespace IngameScript
             private readonly Random rdm = new Random();
 
             private float fireTiming = 0f;
-            private Missile lastLaunched;
 
 
 
@@ -166,8 +165,6 @@ namespace IngameScript
                 }
 
                 launch.missile.control.TryRun(launch.target.ToString());
-
-                lastLaunched = launch.missile;
             }
 
 
@@ -225,11 +222,7 @@ namespace IngameScript
             }
             public void ProcessPostLaunch()
             {
-                if (lastLaunched != null)
-                {
-                    postLaunch?.Trigger();
-                    lastLaunched = null;
-                }
+                postLaunch?.Trigger();
             }
 
 
