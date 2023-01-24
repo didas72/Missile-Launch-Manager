@@ -1,0 +1,8 @@
+﻿TODO
+
+Features:
+-Option to keep batteries (with tag) on recharge right until before launch
+
+Misc:
+-Upload v2.2
+-Update workshop description (new commands, settings, removed need to 'update' by hand)

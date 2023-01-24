@@ -22,8 +22,6 @@ namespace IngameScript
 {
     partial class Program : MyGridProgram
     {
-        //Missile Launch Manager v2.2
-
         #region Settings
         //===== Settings =====//
 
@@ -355,7 +353,7 @@ namespace IngameScript
             {
                 LoadFromStorage();
             }
-            launchControl.LaunchMode = Mode.Auto;
+            launchControl.LaunchMode = Mode.Multiple;
 
             CheckBlocks();
             CheckForMissiles();
@@ -398,18 +396,20 @@ namespace IngameScript
         }
         private void CheckForMissiles()
         {
-            launchControl.ClearMissiles();
-
             List<IMyProgrammableBlock> allPrograms = new List<IMyProgrammableBlock>();
             GridTerminalSystem.GetBlocksOfType(allPrograms);
 
-            foreach (IMyProgrammableBlock control in allPrograms)
+            List<IMyProgrammableBlock> filteredControls = allPrograms.FindAll((IMyProgrammableBlock program) => Missile_Name_Tags.Any(t => program.DisplayNameText.Contains(t)));
+
+            launchControl.ClearMissingMissiles(filteredControls);
+
+            foreach (IMyProgrammableBlock control in filteredControls)
             {
-                if (Missile_Name_Tags.Any(t => control.DisplayNameText.Contains(t)))
-                {
-                    Missile msl = new Missile(control.DisplayNameText, control);
-                    launchControl.AddMissile(msl);
-                }
+                if (launchControl.MissileExists(control))
+                    continue;
+
+                Missile msl = new Missile(control.DisplayNameText, control);
+                launchControl.AddMissile(msl);
             }
         }
 
@@ -795,6 +795,8 @@ namespace IngameScript
         }
         #endregion
 
+
+
         #region Util Methods
         private bool GetTarget(string gps, out Target tgt)
         {
@@ -857,6 +859,8 @@ namespace IngameScript
                 log += info;
         }
         #endregion
+
+
 
         #region Enums
         public enum Mode

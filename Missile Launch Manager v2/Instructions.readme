@@ -1,24 +1,26 @@
-﻿
-//===== Instructions =====//
+﻿//===========================================//
+// Missile Launch Manager v2.2				 //
+// By Didas72								 //
+// github.com/didas72/Missile-Launch-Manager //
+//===========================================//
 
-//=====Setup=====//
+=====Setup=====
 
-//NOTE: Before anything, remember that GPS signals CAN NOT have SPACES in their names for this script to work.
+NOTE: Before anything, remember that GPS signals CAN NOT have SPACES in their names for this script to work.
 
-//1) Ensure the grid has: a programable block (for this script) and power. (An LCD panel and some buttons is STRONGLY recommended but not needed to work)
-//2) If using an LCD, ensure it's name contains the tag 'mlm!' or a tag you may set below in the settings.
-//3) Check that your missiles guidance programmable block has the tag 'mg!' or a tag you may set below in the settings.
+1) Ensure the grid has: a programable block (for this script) and power. (An LCD panel and some buttons are STRONGLY recommended but not needed to work)
+2) If using an LCD, ensure it's name contains the tag 'mlm!' or a tag you may set below in the settings.
+3) Check that your missiles guidance programmable block has the tag 'mg!' or a tag you may set below in the settings.
 
-//And that's it!
+And that's it!
 
-//Here are the commands available to control the script:
-/* fire - Starts launches, depending on the selected mode, targets and missiles
- * add <GPS> - Adds a GPS target to the target list
- * remove [<GPS>/<name>/all] - Removes a GPS target from the target list, if using and LCD accepts no argument, otherwise accepts either the entire GPS point, the name or 'all' to clear the target list.
- * select [all/missile/target] [<number>] - Selects the highlighted missile/target if using an LCD, selects everything if used with the argument 'all', selects all missiles or all targets if using with arguments 'all targets' or 'all missiles', selects specific target/missile if given a number to select.
- * deselect [all/missile/target] [<number>] - See command 'select'
- * abort - Cancells all queued launches.
- * update - Checks for new LCDs and missiles.
- * save - Stores all targets to programmable block memory (not needed).
- * mode auto/multiple/single - Sets launch mode. Auto will launch one per selected target or an equal number per selected target, multiple will fire all selected and distribute by the selected targets, single will launch one per selected target.
- */
+Here are the commands available to control the script:
+ fire - Starts launches, depending on the selected mode, targets and missiles
+ add <GPS> - Adds a GPS target to the target list
+ remove [<GPS>/<name>/all] - Removes a GPS target from the target list, if using and LCD accepts no argument, otherwise accepts either the entire GPS point, the name or 'all' to clear the target list.
+ select [all/missile/target] [<number>] - Selects the highlighted missile/target if using an LCD, selects everything if used with the argument 'all', selects all missiles or all targets if using with arguments 'all targets' or 'all missiles', selects specific target/missile if given a number to select.
+ deselect [all/missile/target] [<number>] - See command 'select'
+ abort - Cancells all queued launches.
+ update - Checks for new LCDs and missiles.
+ save - Stores all targets to programmable block memory (not needed).
+ mode auto/multiple/single - Sets launch mode. Auto will launch one per selected target or an equal number per selected target, multiple will fire all selected and distribute by the selected targets, single will launch one per selected target.

@@ -8,5 +8,3 @@
 // -Added option for launch spread
 // -Added option for launch with delay
 // -Update now checks for blocks too
-//TODO:
-// -Option to keep batteries (with tag) on recharge right until before launch

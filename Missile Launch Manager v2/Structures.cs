@@ -3,64 +3,74 @@
 using SpaceEngineers.Game.ModAPI.Ingame;
 using Sandbox.Game.GameSystems;
 using Sandbox.ModAPI.Ingame;
+using static IngameScript.Program;
 
 namespace IngameScript
 {
-    public struct MissileLaunch
+    partial class Program
     {
-        public Target target;
-        public Missile missile;
-
-        public MissileLaunch(Target tgt, Missile msl)
+        public struct MissileLaunch
         {
-            target = tgt; missile = msl;
-        }
-    }
+            public Target target;
+            public Missile missile;
 
-    public struct Target
-    {
-        public string name;
-        public double x;
-        public double y;
-        public double z;
-
-        public Target(string n, double X, double Y, double Z)
-        {
-            name = n; x = X; y = Y; z = Z;
+            public MissileLaunch(Target tgt, Missile msl)
+            {
+                target = tgt; missile = msl;
+            }
         }
 
-        public override string ToString()
+        public struct Target
         {
-            return $"GPS:{name}:{x}:{y}:{z}";
+            public string name;
+            public double x;
+            public double y;
+            public double z;
+
+            public Target(string n, double X, double Y, double Z)
+            {
+                name = n; x = X; y = Y; z = Z;
+            }
+
+            public override string ToString()
+            {
+                return $"GPS:{name}:{x}:{y}:{z}";
+            }
         }
-    }
 
-    public class Missile
-    {
-        public string name;
-        public IMyProgrammableBlock control;
-        public IMyTimerBlock preLaunch, postLaunch;
-
-        public Missile(string name, IMyProgrammableBlock control)
+        public class Missile
         {
-            this.name = name;
-            this.control = control;
-            preLaunch = null; postLaunch = null;
+            public string name;
+            public IMyProgrammableBlock control;
+            public IMyTimerBlock preLaunch, postLaunch;
+            public readonly int UID;
+
+            //For debugging purposes only so far
+            private static int nextUID = 0;
+
+            public Missile(string name, IMyProgrammableBlock control)
+            {
+                this.name = name;
+                this.control = control;
+                preLaunch = null; postLaunch = null;
+                UID = nextUID++;
+            }
+
+            public Missile(string name, IMyProgrammableBlock control, IMyTimerBlock preLaunch, IMyTimerBlock postLaunch)
+            {
+                this.name = name;
+                this.control = control;
+                this.preLaunch = preLaunch; this.postLaunch = postLaunch;
+                UID = nextUID++;
+            }
         }
 
-        public Missile(string name, IMyProgrammableBlock control, IMyTimerBlock preLaunch, IMyTimerBlock postLaunch)
+        public struct Vector2Int
         {
-            this.name = name;
-            this.control = control;
-            this.preLaunch = preLaunch; this.postLaunch = postLaunch;
+            public int x;
+            public int y;
+
+            public Vector2Int(int X, int Y) { x = X; y = Y; }
         }
-    }
-
-    public struct Vector2Int
-    {
-        public int x;
-        public int y;
-
-        public Vector2Int(int X, int Y) { x = X; y = Y; }
     }
 }
